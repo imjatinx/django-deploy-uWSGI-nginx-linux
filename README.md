@@ -5,7 +5,7 @@ This is a complete quick guide to deploy a Django application with Nginx web ser
 To deploy a **Django** application on your VPS, you typically use **uWSGI** as the application server and **Nginx** as the reverse proxy. Here's a step-by-step guide on deploying Django on your VPS, assuming you're using **Nginx** as the web server and want to set it up with a domain and SSL.
 
 ### Prerequisites:
-- A VPS with root access (DigitalOcean in your case).
+- A VPS with root access.
 - Nginx installed.
 - A domain name pointing to your VPS.
 - SSL with Certbot (Let's Encrypt) installed.
