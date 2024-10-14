@@ -1,244 +1,247 @@
-# guide-django-deploy-uwsgi-nginx-linux
+# Deploying a Django Application using Nginx and uWSGI
 
-This is a complete quick guide to deploy a Django application with Nginx web server using uWSGI interface.
-
-To deploy a **Django** application on your VPS, you typically use **uWSGI** as the application server and **Nginx** as the reverse proxy. Here's a step-by-step guide on deploying Django on your VPS, assuming you're using **Nginx** as the web server and want to set it up with a domain and SSL.
-
-### Prerequisites:
-- A VPS with root access.
-- Nginx installed.
-- A domain name pointing to your VPS.
-- SSL with Certbot (Let's Encrypt) installed.
+Here is a comprehensive guide to setting up your Django application with Nginx and uWSGI (as the WSGI server):
 
 ---
 
-### 1. **Install Python and Virtual Environment**
-Make sure you have Python installed, along with `pip` and `virtualenv` to isolate your project dependencies.
+## Prerequisites
 
+Before you begin, make sure you have:
+
+- A VPS running a Linux distribution (Ubuntu 20.04 or similar).
+- SSH access to the VPS.
+- A domain name (optional but recommended).
+
+## Step 1: Setting Up the Server
+
+1. **Connect to Your VPS**:
+
+   Use SSH to connect to your server. Replace `your_username` and `your_ip_address` with your actual username and IP address.
+
+   ```bash
+   ssh your_username@your_ip_address
+   ```
+
+2. **Update the Package List**:
+
+   Run the following command to update your server’s package list:
+
+   ```bash
+   sudo apt update
+   ```
+
+## Step 2: Installing Required Packages
+
+Run the following commands to:
+
+Install Nginx
 ```bash
-sudo apt update
-sudo apt install python3 python3-pip python3-venv
+sudo apt install -y nginx
 ```
 
----
-
-### 2. **Clone Your Django App to the VPS**
-SSH into your VPS and navigate to the directory where you want to deploy your application, such as `/var/www/your-django-app`:
-
+Install Python and pip (if not already installed)
 ```bash
-cd /var/www
-git clone https://github.com/your-username/your-django-app.git
-cd your-django-app
+sudo apt install -y python3 python3-pip python3-venv
 ```
 
----
+Install Python and pip (if not already installed)
+```bash
+sudo pip install uwsgi
+```
 
-### 3. **Set Up a Virtual Environment**
+## Step 3: Creating a Django Project
+
+1. **Navigate to Your Desired Directory**:
+
+Choose a directory for your Django project. In your case:
+
+```bash
+cd /home/imjatinx/Documents/
+```
+
+2. **Create a Virtual Environment**:
+
 Create and activate a virtual environment:
 
 ```bash
 python3 -m venv venv
+```
+
+```bash
 source venv/bin/activate
 ```
 
-Install the necessary dependencies (including Django, uWSGI, and any other requirements for your app):
+3. **Install Django**:
+
+   With your virtual environment activated, install Django:
+
+   ```bash
+   pip install django
+   ```
+
+4. **Create a New Django Project**:
+
+   Use the Django management command to create a new project. You can skip this step if your project already exists.
+
+   ```bash
+   django-admin startproject example_uwsgi
+   ```
+
+5. **Navigate into Your Project Directory**:
+
+   Change into your newly created project directory:
+
+   ```bash
+   cd example_uwsgi
+   ```
+
+
+## Step 4: Configuring uWSGI
+
+1. **Create a uWSGI Configuration File**:
+
+   Create a file named `example_uwsgi.ini` in your project directory:
+
+   ```bash
+   nano example_uwsgi.ini
+   ```
+
+2. **Add the Following Configuration**:
+
+   Paste the following content into `example_uwsgi.ini`, using a TCP port for communication:
+
+   ```ini
+   [uwsgi]
+   module = example_uwsgi.wsgi:application
+   home = /home/imjatinx/Documents/example_uwsgi/venv
+   chdir = /home/imjatinx/Documents/example_uwsgi
+   http = 127.0.0.1:8000
+   chmod-socket = 660
+   vacuum = true
+   die-on-term = true
+   ```
+
+3. **Save and Exit**:
+
+   Save the file (CTRL + O, then Enter) and exit (CTRL + X).
+
+5. **Run uWSGI Test**:
+
+   Run uWSGI using the configuration file you created:
 
 ```bash
-pip install -r requirements.txt
+uwsgi --ini example_uwsgi.ini
 ```
 
----
+## Step 5: Installing and Configuring Nginx
 
-### 4. **Configure Django Settings for Production**
-- **Update `settings.py`**: Modify your `ALLOWED_HOSTS` to include your domain name and server IP:
+1. **Create a New Nginx Configuration File**:
 
-```python
-ALLOWED_HOSTS = ['your-domain.com', 'www.your-domain.com', 'your-server-ip']
-```
+   Create a new configuration file for your Django project:
 
-- **Set up Static and Media files**:
-  
-In `settings.py`, configure the paths for serving static files:
-```python
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
-```
+   ```bash
+   sudo nano /etc/nginx/sites-available/example_uwsgi
+   ```
 
-Collect the static files:
-```bash
-python manage.py collectstatic
-```
+2. **Add the Following Configuration**:
 
----
+   Paste the following content into the Nginx configuration file, ensuring that the `server_name` directive matches your domain or IP address:
 
-### 5. **Set Up uWSGI (WSGI Server)**
-uWSGI is a WSGI server that will serve your Django application.
+   ```nginx
+   server {
+       listen 80;  # Listen on HTTP port 80
+       server_name your_domain_or_ip;  # Replace with your domain name or server IP
 
-1. Install uWSGI:
+       location = /favicon.ico { access_log off; log_not_found off; }
+       location /static/ {
+           root /home/imjatinx/Documents/example_uwsgi;  # Adjust this if you have a different static directory
+       }
 
-```bash
-pip install uwsgi
-```
+       location / {
+           include uwsgi_params;  # Include standard uwsgi parameters
+           uwsgi_pass 127.0.0.1:8000;  # Use TCP for uWSGI
+       }
+   }
+   ```
 
-2. Create a `uwsgi.ini` configuration file in your Django project directory:
+3. **Enable the Nginx Configuration**:
 
-```ini
-[uwsgi]
-chdir = /var/www/your-django-app
-module = your_django_project.wsgi:application
+   Link your new configuration file to the sites-enabled directory and test the Nginx configuration:
 
-# Enable socket for Nginx
-socket = /run/uwsgi/your_project.sock
-chmod-socket = 664
+   ```bash
+   # Enable the new site
+   sudo ln -s /etc/nginx/sites-available/example_uwsgi /etc/nginx/sites-enabled/
 
-# Processes and threads
-workers = 4
-threads = 2
-
-# Master process
-master = true
-vacuum = true
-
-# Log output
-logto = /var/log/uwsgi/uwsgi.log
-
-# Static and media files
-static-map = /static=/var/www/your-django-app/static
-static-map = /media=/var/www/your-django-app/media
-```
-
-3. Test uWSGI with your Django app:
-
-```bash
-uwsgi --ini uwsgi.ini
-```
-
-If the app runs successfully, you can proceed to create a systemd service for uWSGI.
-
----
-
-### 6. **Set Up uWSGI as a Systemd Service**
-To keep your Django app running, create a systemd service file for uWSGI:
-
-1. **Create a uWSGI service file**:
-
-```bash
-sudo nano /etc/systemd/system/uwsgi.service
-```
-
-2. **Add the following configuration**:
-
-```ini
-[Unit]
-Description=uWSGI service for Django application
-After=network.target
-
-[Service]
-User=user
-Group=user
-WorkingDirectory=/var/www/your-django-app
-ExecStart=/var/www/your-django-app/venv/bin/uwsgi --ini /var/www/your-django-app/uwsgi.ini
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-3. **Start and enable uWSGI**:
-
-```bash
-sudo systemctl start uwsgi
-sudo systemctl enable uwsgi
-```
-
-Check the status of uWSGI to ensure it's running:
-
-```bash
-sudo systemctl status uwsgi
-```
-
----
-
-### 7. **Configure Nginx as a Reverse Proxy**
-Nginx will act as a reverse proxy to uWSGI.
-
-1. **Create an Nginx Server Block**:
-
-```bash
-sudo nano /etc/nginx/sites-available/your_domain
-```
-
-Add the following configuration:
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com www.your-domain.com;
-
-    location / {
-        include uwsgi_params;
-        uwsgi_pass unix:/run/uwsgi/your_project.sock;
-    }
-
-    location /static/ {
-        alias /var/www/your-django-app/static/;
-    }
-
-    location /media/ {
-        alias /var/www/your-django-app/media/;
-    }
-
-    # Optional: Redirect HTTP to HTTPS
-    # return 301 https://$server_name$request_uri;
-}
-```
-
-2. **Enable the Nginx site**:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/your_domain /etc/nginx/sites-enabled/
-```
-
-3. **Test Nginx for syntax errors**:
-
-```bash
-sudo nginx -t
-```
+   # Test for syntax errors
+   sudo nginx -t
+   ```
 
 4. **Restart Nginx**:
 
+   If there are no errors, restart Nginx to apply the changes:
+
+   ```bash
+   sudo systemctl restart nginx
+   ```
+
+## Step 6: Collecting Static Files
+
+If your project uses static files, collect them using the following command:
+
 ```bash
-sudo systemctl restart nginx
+cd /home/imjatinx/Documents/example_uwsgi
+python manage.py collectstatic
 ```
+
+## Step 7: Configuring uWSGI as a Service (Optional)
+
+To run uWSGI in the background and have it start automatically on boot, create a systemd service file:
+
+1. **Create the Systemd Service File**:
+
+   ```bash
+   sudo nano /etc/systemd/system/uwsgi.service
+   ```
+
+2. **Add the Following Content**:
+
+   Paste the following content into the `uwsgi.service` file:
+
+   ```ini
+   [Unit]
+   Description=uWSGI instance to serve example_uwsgi
+   After=network.target
+
+   [Service]
+   User=your_username  # Replace with your username
+   Group=www-data
+   WorkingDirectory=/home/imjatinx/Documents/example_uwsgi
+   Environment="PATH=/home/imjatinx/Documents/example_uwsgi/venv/bin"
+   ExecStart=/home/imjatinx/Documents/example_uwsgi/venv/bin/uwsgi --ini /home/imjatinx/Documents/example_uwsgi/example_uwsgi.ini
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. **Start and Enable the uWSGI Service**:
+
+   Start and enable the uWSGI service:
+
+   ```bash
+   sudo systemctl start uwsgi
+   sudo systemctl enable uwsgi
+   ```
+
+## Step 8: Testing Your Application
+
+Open a web browser and navigate to your server's domain name or IP address. You should see the default Django welcome page.
+
+## Step 9: Conclusion
+
+Congratulations! You have successfully deployed a Django application using Nginx and uWSGI on your VPS with TCP configuration. You can further customize your application as needed.
+
+If you encounter any issues or have questions, feel free to seek help!
 
 ---
 
-### 8. **Set Up SSL with Certbot (Optional)**
-If you want to enable HTTPS using Let's Encrypt, use Certbot to automatically configure SSL for your domain.
-
-1. Install Certbot (if not already installed):
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-```
-
-2. Obtain an SSL certificate and configure Nginx:
-
-```bash
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com
-```
-
-Certbot will automatically update your Nginx configuration to serve your Django app securely over HTTPS.
-
----
-
-### 9. **Verify Deployment**
-Visit your domain (`http://your-domain.com` or `https://your-domain.com` if using SSL) and verify that your Django app is running correctly.
-
----
-
-### Summary:
-- **uWSGI**: Use it as the WSGI server for your Django app.
-- **Nginx**: Configure it as a reverse proxy to serve your app.
-- **Certbot**: Use it to set up SSL for secure HTTPS access.
-- **Static Files**: Serve them using Nginx while routing dynamic requests to uWSGI.
+This updated documentation uses TCP for uWSGI. Let me know if you need any further adjustments or additional information!
